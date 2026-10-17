@@ -13,6 +13,8 @@ class ToolCall(BaseModel):
     id: str
     name: str
     arguments: dict[str, Any] = Field(default_factory=dict)
+    # set by adapters when the model's raw arguments could not be parsed as JSON
+    parse_error: str | None = None
 
 
 class Message(BaseModel):

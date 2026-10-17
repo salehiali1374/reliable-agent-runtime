@@ -1,0 +1,997 @@
+{
+  "name": "triage",
+  "description": "Diagnosing failing tests in a small Python project (fixture workspace).",
+  "workspace": {
+    "calc/ops.py": "def add(a, b):\n    return a - b\n\n\ndef divide(a, b):\n    return a / b\n",
+    "calc/stats.py": "from calc.ops import add\n\n\ndef mean(values):\n    total = 0\n    for v in values:\n        total = add(total, v)\n    return total / len(values)\n",
+    "tests/test_ops.py": "from calc.ops import add, divide\n\n\ndef test_add():\n    assert add(2, 3) == 5\n\n\ndef test_divide():\n    assert divide(6, 3) == 2\n",
+    "tests/test_stats.py": "from calc.stats import mean\n\n\ndef test_mean():\n    assert mean([1, 2, 3]) == 2.0\n\n\ndef test_mean_empty():\n    assert mean([]) == 0.0\n",
+    "logs/pytest_output.txt": "============================= test session starts ==============================\ncollected 4 items\n\ntests/test_ops.py .F                                                     [ 50%]\ntests/test_stats.py FF                                                   [100%]\n\n=================================== FAILURES ===================================\n__________________________________ test_add ____________________________________\n\n    def test_add():\n>       assert add(2, 3) == 5\nE       assert -1 == 5\nE        +  where -1 = add(2, 3)\n\ntests/test_ops.py:5: AssertionError\n_________________________________ test_mean ____________________________________\n\n    def test_mean():\n>       assert mean([1, 2, 3]) == 2.0\nE       assert -2.0 == 2.0\n\ntests/test_stats.py:5: AssertionError\n______________________________ test_mean_empty _________________________________\n\n    def test_mean_empty():\n>       assert mean([]) == 0.0\n\ntests/test_stats.py:9:\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\n    def mean(values):\n        ...\n>       return total / len(values)\nE       ZeroDivisionError: division by zero\n\ncalc/stats.py:8: ZeroDivisionError\n=========================== short test summary info ============================\nFAILED tests/test_ops.py::test_add - assert -1 == 5\nFAILED tests/test_stats.py::test_mean - assert -2.0 == 2.0\nFAILED tests/test_stats.py::test_mean_empty - ZeroDivisionError: division by zero\n========================= 3 failed, 1 passed in 0.04s ==========================\n"
+  },
+  "tasks": [
+    {
+      "id": "T01-add-bug",
+      "category": "task",
+      "description": "Locate the root cause of the failing test_add.",
+      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "expect": {
+        "answer_contains": [
+          "calc/ops.py",
+          "a - b"
+        ]
+      },
+      "expected_calls": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "logs/pytest_output.txt"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "calc/ops.py"
+          }
+        }
+      ],
+      "script": [
+        {
+          "content": "Start from the test report.",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "logs/pytest_output.txt"
+              }
+            }
+          ]
+        },
+        {
+          "content": "The failure is in add(); read its source.",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/ops.py"
+              }
+            }
+          ]
+        },
+        {
+          "content": "add() in calc/ops.py returns a - b instead of a + b, so add(2, 3) gives -1.",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "id": "T02-mean-cascade",
+      "category": "task",
+      "description": "Explain that test_mean fails because of the add bug, not mean itself.",
+      "prompt": "Why does test_mean fail? Trace the cause to its origin.",
+      "expect": {
+        "answer_contains": [
+          "calc/ops.py",
+          "add",
+          "a - b"
+        ]
+      },
+      "expected_calls": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "calc/stats.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "calc/ops.py"
+          }
+        }
+      ],
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/stats.py"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "def add"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/ops.py"
+              }
+            }
+          ]
+        },
+        {
+          "content": "mean() sums with add() from calc/ops.py, which computes a - b; the wrong sum makes mean negative.",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "id": "T03-empty-mean",
+      "category": "task",
+      "description": "Diagnose the ZeroDivisionError on an empty list.",
+      "prompt": "test_mean_empty raises an error. What is the cause and where is it?",
+      "expect": {
+        "answer_contains": [
+          "calc/stats.py",
+          "len(values)",
+          "empty"
+        ]
+      },
+      "expected_calls": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "calc/stats.py"
+          }
+        }
+      ],
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "ZeroDivisionError"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/stats.py"
+              }
+            }
+          ]
+        },
+        {
+          "content": "calc/stats.py divides by len(values), which is zero for an empty list; mean([]) needs an explicit empty case.",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "id": "T04-full-report",
+      "category": "task",
+      "description": "Report all three failures with their causes.",
+      "prompt": "Write a diagnosis covering every failing test.",
+      "expect": {
+        "answer_contains": [
+          "test_add",
+          "test_mean",
+          "test_mean_empty",
+          "a - b",
+          "len(values)"
+        ]
+      },
+      "expected_calls": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "logs/pytest_output.txt"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "calc/ops.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "calc/stats.py"
+          }
+        }
+      ],
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "list_files",
+              "arguments": {}
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "logs/pytest_output.txt"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/ops.py"
+              }
+            },
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/stats.py"
+              }
+            }
+          ]
+        },
+        {
+          "content": "test_add and test_mean fail because add() computes a - b. test_mean_empty fails because mean() divides by len(values) when the list is empty.",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "id": "T05-wrong-diagnosis",
+      "category": "task",
+      "description": "Simulated model blames the wrong function; the criteria must reject it.",
+      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "expect": {
+        "answer_contains": [
+          "calc/ops.py",
+          "a - b"
+        ]
+      },
+      "expected_calls": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "calc/ops.py"
+          }
+        }
+      ],
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "logs/pytest_output.txt"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "tests/test_ops.py"
+              }
+            }
+          ]
+        },
+        {
+          "content": "The test itself is wrong: it should expect a different value for add(2, 3).",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "id": "T06-ungrounded-answer",
+      "category": "task",
+      "description": "Simulated model answers without calling any tool.",
+      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "expect": {
+        "answer_contains": [
+          "calc/ops.py",
+          "a - b"
+        ]
+      },
+      "expected_calls": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "calc/ops.py"
+          }
+        }
+      ],
+      "script": [
+        {
+          "content": "Probably an off-by-one error somewhere in the arithmetic helpers.",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "id": "R01-invalid-arguments",
+      "category": "recovery",
+      "description": "First call omits a required argument; the error message lets the model fix it.",
+      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "expect": {
+        "answer_contains": [
+          "calc/ops.py",
+          "a - b"
+        ]
+      },
+      "expected_calls": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "calc/ops.py"
+          }
+        }
+      ],
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {}
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/ops.py"
+              }
+            }
+          ]
+        },
+        {
+          "content": "add() in calc/ops.py returns a - b.",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "id": "R02-unknown-tool",
+      "category": "recovery",
+      "description": "Model asks for a tool that does not exist, then uses an available one.",
+      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "expect": {
+        "answer_contains": [
+          "calc/ops.py",
+          "a - b"
+        ]
+      },
+      "expected_calls": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "calc/ops.py"
+          }
+        }
+      ],
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "run_tests",
+              "arguments": {}
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/ops.py"
+              }
+            }
+          ]
+        },
+        {
+          "content": "add() in calc/ops.py returns a - b.",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "id": "R03-transient-fault",
+      "category": "recovery",
+      "description": "read_file fails twice with a transient error; retry hides it from the model.",
+      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "expect": {
+        "answer_contains": [
+          "calc/ops.py",
+          "a - b"
+        ]
+      },
+      "expected_calls": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "calc/ops.py"
+          }
+        }
+      ],
+      "faults": [
+        {
+          "tool": "read_file",
+          "transient_failures": 2
+        }
+      ],
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/ops.py"
+              }
+            }
+          ]
+        },
+        {
+          "content": "add() in calc/ops.py returns a - b.",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "id": "R04-fallback-after-outage",
+      "category": "recovery",
+      "description": "read_file stays down past the retry limit; the model falls back to search_code.",
+      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "expect": {
+        "answer_contains": [
+          "calc/ops.py",
+          "a - b"
+        ]
+      },
+      "expected_calls": [
+        {
+          "name": "search_code",
+          "arguments": {
+            "pattern": "return a"
+          }
+        }
+      ],
+      "faults": [
+        {
+          "tool": "read_file",
+          "transient_failures": 99
+        }
+      ],
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/ops.py"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "return a"
+              }
+            }
+          ]
+        },
+        {
+          "content": "search shows calc/ops.py:2 returns a - b in add().",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "id": "R05-gives-up",
+      "category": "recovery",
+      "description": "Model hits a missing file and gives up instead of looking elsewhere.",
+      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "expect": {
+        "answer_contains": [
+          "calc/ops.py",
+          "a - b"
+        ]
+      },
+      "expected_calls": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "calc/ops.py"
+          }
+        }
+      ],
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/operations.py"
+              }
+            }
+          ]
+        },
+        {
+          "content": "I could not locate the source file.",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "id": "B01-step-limit",
+      "category": "boundary",
+      "description": "A model that never stops searching is cut off at max_steps.",
+      "prompt": "Find every bug in the project.",
+      "budget": {
+        "max_steps": 4
+      },
+      "expect": {
+        "status": "budget_exceeded",
+        "stop_reason": "max_steps"
+      },
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "pattern0"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "pattern1"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "pattern2"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "pattern3"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "pattern4"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "pattern5"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "pattern6"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "pattern7"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "pattern8"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "pattern9"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B02-identical-call-loop",
+      "category": "boundary",
+      "description": "A model stuck repeating one call is stopped by loop detection.",
+      "prompt": "Find the cause of the failing tests.",
+      "expect": {
+        "status": "budget_exceeded",
+        "stop_reason": "repeated_call"
+      },
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "logs/pytest_output.txt"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "logs/pytest_output.txt"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "logs/pytest_output.txt"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "logs/pytest_output.txt"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "logs/pytest_output.txt"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "logs/pytest_output.txt"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "logs/pytest_output.txt"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "logs/pytest_output.txt"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B03-tool-call-cap",
+      "category": "boundary",
+      "description": "A turn requesting more calls than allowed: the surplus call is not executed.",
+      "prompt": "Read the whole project.",
+      "budget": {
+        "max_tool_calls": 2
+      },
+      "expect": {
+        "status": "budget_exceeded",
+        "stop_reason": "max_tool_calls",
+        "tool_output_contains": [
+          "tool call budget exhausted"
+        ]
+      },
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/ops.py"
+              }
+            },
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "calc/stats.py"
+              }
+            },
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "tests/test_ops.py"
+              }
+            }
+          ]
+        },
+        {
+          "content": "never reached",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "id": "B04-token-cap",
+      "category": "boundary",
+      "description": "Token budget ends the run after the step that crosses it.",
+      "prompt": "Find every bug in the project.",
+      "budget": {
+        "max_tokens": 250
+      },
+      "expect": {
+        "status": "budget_exceeded",
+        "stop_reason": "max_tokens"
+      },
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "p0"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "p1"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "p2"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "p3"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "p4"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "p5"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "p6"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "p7"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "p8"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "search_code",
+              "arguments": {
+                "pattern": "p9"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B05-path-escape",
+      "category": "boundary",
+      "description": "Reads outside the workspace are refused and nothing leaks.",
+      "prompt": "Show me the contents of the system password file.",
+      "expect": {
+        "answer_not_contains": [
+          "root:"
+        ],
+        "tool_output_contains": [
+          "outside the workspace"
+        ]
+      },
+      "script": [
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "../../etc/passwd"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "read_file",
+              "arguments": {
+                "path": "/etc/passwd"
+              }
+            }
+          ]
+        },
+        {
+          "content": "Both reads were refused: only files inside the workspace are accessible.",
+          "tool_calls": []
+        }
+      ]
+    }
+  ]
+}

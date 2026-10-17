@@ -15,6 +15,7 @@ from agent_runtime.tools import (
     TransientToolError,
     tool,
 )
+from agent_runtime.trace import MemoryTracer, NullTracer, SQLiteTracer, TraceEvent, Tracer
 
 __version__ = "0.1.0"
 
@@ -25,13 +26,18 @@ __all__ = [
     "CheckpointStore",
     "LLMClient",
     "LLMError",
+    "MemoryTracer",
     "Message",
+    "NullTracer",
     "Pricing",
     "RetryPolicy",
     "RunState",
+    "SQLiteTracer",
     "ScriptedLLM",
     "Tool",
     "ToolCall",
+    "TraceEvent",
+    "Tracer",
     "ToolRegistry",
     "ToolResult",
     "ToolSpec",

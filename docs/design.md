@@ -93,6 +93,27 @@ Three extension mechanisms, each with a distinct job:
 - **Failure model.** A model that stays unavailable ends the run as `failed`. An unexpected
   exception from an adapter is a bug and propagates; the last checkpoint remains resumable.
 
+## Observability and evaluation
+
+- **Trace.** Four event types per run: `run_started`, `llm_call` (step, latency, attempts,
+  tokens, the model's text, requested calls), `tool_call` (name, arguments, output, latency,
+  attempts, `error_kind`) and `run_finished`. Events are append-only with a per-run sequence
+  number, so a resumed run continues its own trace.
+- **Benchmark.** A task has a prompt, declarative success criteria (status, stop reason,
+  required and forbidden answer text, required tool output), expected tool calls, optional
+  fault injection and a budget override. Tasks run against a fixture workspace through
+  read-only tools that refuse paths outside it.
+- **Categories.** `task` needs a correct answer, `recovery` needs one after a failure that
+  actually occurred (a run that never failed does not count as recovered), `boundary` needs a
+  limit to stop the run.
+- **Simulated vs live.** Simulated runs use scripted models and a frozen clock, so the report
+  is byte-for-byte reproducible and reports latency as n/a. Live runs use a real model and
+  are written to separate files that name the model.
+- **Adapter.** `OpenAICompatClient` speaks the chat-completions API with tool calls over the
+  standard library. Timeouts, connection errors and HTTP 408/425/429/5xx are transient;
+  other failures are permanent; unparsable tool-call arguments are passed on as an invalid
+  call the model can correct.
+
 ## Metrics
 
 - Task success rate against criteria fixed before the run.

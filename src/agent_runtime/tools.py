@@ -26,6 +26,8 @@ class ToolResult(BaseModel):
     content: str
     is_error: bool = False
     attempts: int = 1
+    # unknown_tool | invalid_arguments | timeout | transient | tool_error; None when successful
+    error_kind: str | None = None
 
 
 class ToolInputError(ValueError):
@@ -42,6 +44,14 @@ class ToolTimeoutError(Exception):
 
 def _is_transient(exc: Exception) -> bool:
     return isinstance(exc, TransientToolError | ToolTimeoutError)
+
+
+def _error_kind(exc: Exception) -> str:
+    if isinstance(exc, ToolTimeoutError):
+        return "timeout"
+    if isinstance(exc, TransientToolError):
+        return "transient"
+    return "tool_error"
 
 
 def _run_with_timeout(fn: Callable[[], str], timeout: float | None, name: str) -> str:
@@ -169,11 +179,24 @@ class ToolRegistry:
                 call_id=call.id,
                 content=f"unknown tool {call.name!r}; available tools: {known}",
                 is_error=True,
+                error_kind="unknown_tool",
+            )
+        if call.parse_error:
+            return ToolResult(
+                call_id=call.id,
+                content=f"invalid arguments: not valid JSON ({call.parse_error})",
+                is_error=True,
+                error_kind="invalid_arguments",
             )
         try:
             args = t.validate(call.arguments)
         except ToolInputError as exc:
-            return ToolResult(call_id=call.id, content=f"invalid arguments: {exc}", is_error=True)
+            return ToolResult(
+                call_id=call.id,
+                content=f"invalid arguments: {exc}",
+                is_error=True,
+                error_kind="invalid_arguments",
+            )
 
         timeout = t.timeout if t.timeout is not None else self.default_timeout
         try:
@@ -189,5 +212,6 @@ class ToolRegistry:
                 content=f"{type(failure.last).__name__}: {failure.last}{note}",
                 is_error=True,
                 attempts=failure.attempts,
+                error_kind=_error_kind(failure.last),
             )
         return ToolResult(call_id=call.id, content=content, attempts=attempts)
