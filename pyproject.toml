@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reliable-agent-runtime"
+version = "0.1.0"
+description = "A small, tested runtime for tool-using LLM agents: controlled tool execution, state, recovery and evaluation"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Ali Salehi" }]
+license = { text = "MIT" }
+dependencies = ["pydantic>=2.7"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+mcp = ["mcp>=2"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_runtime"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["live: calls a real LLM endpoint (skipped in CI)"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
