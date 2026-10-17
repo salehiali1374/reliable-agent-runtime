@@ -75,3 +75,97 @@ def test_decorator_uses_docstring_and_custom_name():
     assert f.name == "double"
     result = ToolRegistry([f]).execute(ToolCall(id="1", name="double", arguments={"x": 4}))
     assert result.content == "8"
+
+
+def _flaky_registry(failures: int, sleep, **kwargs):
+    from pydantic import BaseModel
+
+    from agent_runtime import RetryPolicy, TransientToolError, tool
+
+    class Empty(BaseModel):
+        pass
+
+    calls = {"n": 0}
+
+    @tool(Empty, description="Fails a few times, then works.", **kwargs)
+    def flaky(args: Empty) -> str:
+        calls["n"] += 1
+        if calls["n"] <= failures:
+            raise TransientToolError("connection reset")
+        return "recovered"
+
+    return ToolRegistry([flaky], retry=RetryPolicy(max_attempts=3, sleep=sleep)), calls
+
+
+def test_transient_tool_error_is_retried_until_success():
+    from .conftest import NoSleep
+
+    registry, calls = _flaky_registry(2, NoSleep())
+    result = registry.execute(ToolCall(id="1", name="flaky", arguments={}))
+    assert result.content == "recovered"
+    assert not result.is_error
+    assert result.attempts == 3
+    assert calls["n"] == 3
+
+
+def test_transient_tool_error_gives_up_with_error_result():
+    from .conftest import NoSleep
+
+    registry, calls = _flaky_registry(99, NoSleep())
+    result = registry.execute(ToolCall(id="1", name="flaky", arguments={}))
+    assert result.is_error
+    assert "connection reset" in result.content
+    assert "gave up after 3 attempts" in result.content
+    assert result.attempts == 3
+    assert calls["n"] == 3
+
+
+def test_permanent_tool_error_is_not_retried(registry):
+    result = registry.execute(ToolCall(id="1", name="read_file", arguments={"path": "missing"}))
+    assert result.is_error
+    assert result.attempts == 1
+
+
+def _slow_registry(sleep, **kwargs):
+    import threading
+
+    from pydantic import BaseModel
+
+    from agent_runtime import RetryPolicy, tool
+
+    class Empty(BaseModel):
+        pass
+
+    release = threading.Event()
+
+    @tool(Empty, description="Blocks until released.", timeout=kwargs.pop("tool_timeout", None))
+    def slow(args: Empty) -> str:
+        release.wait(5)
+        return "late"
+
+    registry = ToolRegistry([slow], retry=RetryPolicy(max_attempts=2, sleep=sleep), **kwargs)
+    return registry, release
+
+
+def test_tool_timeout_returns_error_instead_of_hanging():
+    from .conftest import NoSleep
+
+    registry, release = _slow_registry(NoSleep(), default_timeout=0.05)
+    try:
+        result = registry.execute(ToolCall(id="1", name="slow", arguments={}))
+    finally:
+        release.set()
+    assert result.is_error
+    assert "timed out" in result.content
+    assert result.attempts == 2  # a timeout counts as transient
+
+
+def test_per_tool_timeout_overrides_registry_default():
+    from .conftest import NoSleep
+
+    registry, release = _slow_registry(NoSleep(), default_timeout=30, tool_timeout=0.05)
+    try:
+        result = registry.execute(ToolCall(id="1", name="slow", arguments={}))
+    finally:
+        release.set()
+    assert "timed out after 0.05s" in result.content

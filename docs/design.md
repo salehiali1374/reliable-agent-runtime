@@ -73,6 +73,26 @@ Three extension mechanisms, each with a distinct job:
    gathers evidence via MCP tools, follows a skill, and writes a diagnosis report without being
    allowed to modify code. Exit: runnable demo, sample benchmark and a technical write-up.
 
+## Reliability semantics
+
+- **Errors are results.** A tool failure (unknown tool, invalid arguments, exception, timeout)
+  is returned to the model as an error message; it never aborts the run.
+- **Retry.** Only `TransientToolError`, `ToolTimeoutError` and `TransientLLMError` are retried:
+  exponential backoff, capped delay, bounded attempts. Everything else fails on the first try.
+- **Timeouts.** Tool calls run in a worker thread and the runtime stops waiting after the
+  limit. A Python thread cannot be killed, so tools that need hard cancellation must use a
+  subprocess.
+- **Budget.** Steps, tool calls, tokens, cost, wall-clock time and identical repeated calls
+  are checked before every model call. A run that hits a limit ends with
+  `status="budget_exceeded"` and a `stop_reason`; the history stays valid (every tool call has
+  a result).
+- **Checkpoints.** The full `RunState` is written to SQLite after every completed step.
+  `Agent.resume(run_id)` continues from the last checkpoint and counts work done before the
+  interruption against the budget. A step interrupted mid-way is executed again, so tools
+  must be idempotent; the sandbox tools are read-only.
+- **Failure model.** A model that stays unavailable ends the run as `failed`. An unexpected
+  exception from an adapter is a bug and propagates; the last checkpoint remains resumable.
+
 ## Metrics
 
 - Task success rate against criteria fixed before the run.

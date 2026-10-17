@@ -1,6 +1,6 @@
 import pytest
 
-from agent_runtime import Agent, ScriptedLLM
+from agent_runtime import Agent, Budget, ScriptedLLM
 from agent_runtime.llm import ScriptExhaustedError
 
 from .conftest import answer_turn, call_turn
@@ -69,9 +69,10 @@ def test_unknown_tool_does_not_crash_the_loop(registry):
 
 def test_stops_at_max_steps(registry):
     llm = ScriptedLLM([call_turn(f"c{i}", "read_file", path="notes.txt") for i in range(10)])
-    result = Agent(llm, registry, max_steps=3).run("loop forever")
+    result = Agent(llm, registry, budget=Budget(max_steps=3, max_identical_calls=None)).run("x")
 
-    assert result.status == "max_steps"
+    assert result.status == "budget_exceeded"
+    assert result.stop_reason == "max_steps"
     assert result.answer is None
     assert result.steps == 3
     assert len(llm.requests) == 3
@@ -110,6 +111,6 @@ def test_exhausted_script_raises(registry):
         Agent(ScriptedLLM([call_turn("c1", "read_file", path="notes.txt")]), registry).run("x")
 
 
-def test_max_steps_must_be_positive(registry):
+def test_max_steps_must_be_positive():
     with pytest.raises(ValueError):
-        Agent(ScriptedLLM([]), registry, max_steps=0)
+        Budget(max_steps=0)

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Literal
+import time
+import uuid
+from collections.abc import Callable
 
-from agent_runtime.llm import LLMClient
-from agent_runtime.messages import Message, Usage
+from agent_runtime.budget import Budget, Pricing
+from agent_runtime.llm import LLMClient, LLMError, TransientLLMError
+from agent_runtime.messages import Message
+from agent_runtime.reliability import RetryFailed, RetryPolicy, retry_call
+from agent_runtime.state import CheckpointStore, RunState
 from agent_runtime.tools import ToolRegistry
 
 DEFAULT_SYSTEM_PROMPT = (
@@ -16,15 +20,6 @@ DEFAULT_SYSTEM_PROMPT = (
 )
 
 
-@dataclass
-class RunResult:
-    status: Literal["completed", "max_steps"]
-    answer: str | None
-    messages: list[Message]
-    steps: int
-    usage: Usage = field(default_factory=Usage)
-
-
 class Agent:
     def __init__(
         self,
@@ -32,35 +27,95 @@ class Agent:
         registry: ToolRegistry,
         *,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
-        max_steps: int = 20,
+        budget: Budget | None = None,
+        pricing: Pricing | None = None,
+        retry: RetryPolicy | None = None,
+        store: CheckpointStore | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ):
-        if max_steps < 1:
-            raise ValueError("max_steps must be at least 1")
+        self.budget = budget or Budget()
+        if self.budget.max_cost_usd is not None and pricing is None:
+            raise ValueError("max_cost_usd needs a pricing")
         self.llm = llm
         self.registry = registry
         self.system_prompt = system_prompt
-        self.max_steps = max_steps
+        self.pricing = pricing
+        self.retry = retry or RetryPolicy()
+        self.store = store
+        self.clock = clock
 
-    def run(self, task: str) -> RunResult:
-        messages = [
-            Message(role="system", content=self.system_prompt),
-            Message(role="user", content=task),
-        ]
-        usage = Usage()
+    def run(self, task: str, *, run_id: str | None = None) -> RunState:
+        state = RunState(
+            run_id=run_id or uuid.uuid4().hex,
+            task=task,
+            messages=[
+                Message(role="system", content=self.system_prompt),
+                Message(role="user", content=task),
+            ],
+        )
+        self._save(state)
+        return self._loop(state)
+
+    def resume(self, run_id: str) -> RunState:
+        """Continue a run from its last checkpoint. Finished runs are returned unchanged."""
+        if self.store is None:
+            raise ValueError("resume needs a checkpoint store")
+        state = self.store.load(run_id)
+        if state is None:
+            raise KeyError(f"no checkpoint for run {run_id!r}")
+        if state.status != "running":
+            return state
+        return self._loop(state)
+
+    def _loop(self, state: RunState) -> RunState:
+        started = self.clock()
+        elapsed_before = state.elapsed_seconds
         specs = self.registry.specs()
 
-        for step in range(1, self.max_steps + 1):
-            turn = self.llm.complete(messages, specs)
-            usage = usage + turn.usage
-            messages.append(
+        while True:
+            state.elapsed_seconds = elapsed_before + (self.clock() - started)
+            reason = self.budget.check(state, self.pricing)
+            if reason:
+                return self._finish(state, "budget_exceeded", stop_reason=reason)
+
+            try:
+                turn, _ = retry_call(
+                    lambda: self.llm.complete(state.messages, specs),
+                    self.retry,
+                    lambda exc: isinstance(exc, TransientLLMError),
+                )
+            except RetryFailed as failure:
+                if not isinstance(failure.last, LLMError):
+                    raise failure.last from None
+                return self._finish(state, "failed", error=str(failure), stop_reason="llm_error")
+
+            state.steps += 1
+            state.usage = state.usage + turn.usage
+            state.messages.append(
                 Message(role="assistant", content=turn.content, tool_calls=turn.tool_calls)
             )
             if not turn.tool_calls:
-                return RunResult("completed", turn.content, messages, step, usage)
+                state.answer = turn.content
+                return self._finish(state, "completed")
 
             for call in turn.tool_calls:
+                if (
+                    self.budget.max_tool_calls is not None
+                    and state.tool_calls >= self.budget.max_tool_calls
+                ):
+                    # every tool call needs a matching result to keep the history valid
+                    state.messages.append(
+                        Message(
+                            role="tool",
+                            content="tool call budget exhausted; this call was not executed",
+                            tool_call_id=call.id,
+                            is_error=True,
+                        )
+                    )
+                    continue
                 result = self.registry.execute(call)
-                messages.append(
+                state.tool_calls += 1
+                state.messages.append(
                     Message(
                         role="tool",
                         content=result.content,
@@ -68,5 +123,22 @@ class Agent:
                         is_error=result.is_error,
                     )
                 )
+            self._save(state)
 
-        return RunResult("max_steps", None, messages, self.max_steps, usage)
+    def _finish(
+        self,
+        state: RunState,
+        status: str,
+        *,
+        stop_reason: str | None = None,
+        error: str | None = None,
+    ) -> RunState:
+        state.status = status  # type: ignore[assignment]
+        state.stop_reason = stop_reason
+        state.error = error
+        self._save(state)
+        return state
+
+    def _save(self, state: RunState) -> None:
+        if self.store is not None:
+            self.store.save(state)

@@ -9,6 +9,14 @@ from agent_runtime.messages import AssistantTurn, Message
 from agent_runtime.tools import ToolSpec
 
 
+class LLMError(Exception):
+    """The model call failed and retrying will not help."""
+
+
+class TransientLLMError(LLMError):
+    """The model call failed in a way that may succeed on retry (rate limit, timeout, 5xx)."""
+
+
 class LLMClient(Protocol):
     def complete(self, messages: Sequence[Message], tools: Sequence[ToolSpec]) -> AssistantTurn: ...
 

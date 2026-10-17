@@ -45,3 +45,26 @@ def call_turn(call_id: str, name: str, **arguments) -> AssistantTurn:
 
 def answer_turn(text: str) -> AssistantTurn:
     return AssistantTurn(content=text, usage=Usage(prompt_tokens=10, completion_tokens=5))
+
+
+class FakeClock:
+    """Deterministic clock: advances only when told to."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
+class NoSleep:
+    """Records requested backoff delays instead of sleeping."""
+
+    def __init__(self):
+        self.delays: list[float] = []
+
+    def __call__(self, seconds: float) -> None:
+        self.delays.append(seconds)
