@@ -56,6 +56,9 @@ class EvalTask(BaseModel):
     budget: dict[str, Any] = Field(default_factory=dict)
     # scripted model behaviour, used only by simulated runs
     script: list[ScriptedTurn] | None = None
+    # the task depends on the scripted model misbehaving on purpose (wrong answer, bad
+    # arguments, endless loop), which a real model cannot be forced to do; skipped in live runs
+    scripted_only: bool = False
 
 
 class PricingConfig(BaseModel):
@@ -73,3 +76,7 @@ class Benchmark(BaseModel):
 
 def load_benchmark(path: str | Path) -> Benchmark:
     return Benchmark.model_validate_json(Path(path).read_text(encoding="utf-8"))
+
+
+def live_tasks(benchmark: Benchmark) -> list[EvalTask]:
+    return [t for t in benchmark.tasks if not t.scripted_only]

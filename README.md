@@ -4,7 +4,7 @@ A small, tested runtime for LLM agents that call tools: bounded execution, expli
 recovery from failures, per-step tracing and a reproducible evaluation harness. The core has
 no agent-framework dependency; the only runtime dependency is Pydantic.
 
-Status: milestones 1-3 done (core runtime, reliability, observability and evaluation). See
+Status: milestones 1-3 done (core runtime, reliability, observability and evaluation); MCP and skills are next. See
 [docs/design.md](docs/design.md) for scope, architecture and the roadmap.
 
 ## Quick look
@@ -67,12 +67,30 @@ including deliberately wrong answers, to verify the runtime and the scoring; it 
 about any real model. The current simulated report is in
 [results/sim_triage.md](results/sim_triage.md).
 
-Live run against an OpenAI-compatible server with tool calling:
+Live run against an OpenAI-compatible server:
 
 ```bash
-AGENT_LLM_BASE_URL=http://127.0.0.1:11434/v1 AGENT_LLM_MODEL=<model> \
-  python -m agent_runtime.eval benchmarks/triage.json --mode live
+AGENT_LLM_BASE_URL=http://localhost:11434/v1 AGENT_LLM_MODEL=<model> \
+  python -m agent_runtime.eval benchmarks/triage.json --mode live --tools prompted
 ```
+
+`--tools native` uses the server's tool-calling API; `--tools prompted` describes the tools in
+the prompt and parses JSON actions from the reply, which works with models that have no native
+tool support. Live runs skip the tasks that rely on a deliberately misbehaving scripted model
+(`scripted_only`), so 6 of the 16 tasks run live.
+
+### Live results (gemma3:27b-it-q8_0, prompted tools)
+
+2 of 6 tasks passed (task success 33%, recovery 50%; 100% valid tool calls). Full table in
+[results/live_triage_gemma3-27b-it-q8_0.md](results/live_triage_gemma3-27b-it-q8_0.md).
+Typical failures: answering from the test report without opening the source, blaming the test
+file instead of the source, and mixing up `test_mean` with `test_mean_empty`.
+
+Limitations of this measurement: one model, one run, six tasks, so no confidence interval and
+single-task differences are noise. The task prompts were clarified once after a first live run
+showed that "faulty expression" was ambiguous (that run scored 0 of 6 and is not published);
+the success criteria were not changed. The `T04-full-report` prompt still does not explicitly
+ask for the root cause in the source, so its failure partly reflects wording.
 
 ## Development
 

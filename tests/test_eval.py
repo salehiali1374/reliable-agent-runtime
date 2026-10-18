@@ -7,7 +7,14 @@ from agent_runtime import MemoryTracer, ToolCall
 from agent_runtime.eval.__main__ import main
 from agent_runtime.eval.metrics import compute_metrics
 from agent_runtime.eval.runner import run_benchmark, run_task, scripted_llm
-from agent_runtime.eval.tasks import Benchmark, EvalTask, Fault, PricingConfig, load_benchmark
+from agent_runtime.eval.tasks import (
+    Benchmark,
+    EvalTask,
+    Fault,
+    PricingConfig,
+    live_tasks,
+    load_benchmark,
+)
 from agent_runtime.eval.workspace import build_registry
 
 BENCHMARK = Path(__file__).parent.parent / "benchmarks" / "triage.json"
@@ -134,3 +141,16 @@ def test_live_mode_requires_endpoint_configuration(tmp_path, monkeypatch, capsys
     monkeypatch.delenv("AGENT_LLM_MODEL", raising=False)
     assert main([str(BENCHMARK), "--mode", "live", "--out", str(tmp_path)]) == 2
     assert "AGENT_LLM_BASE_URL" in capsys.readouterr().err
+
+
+def test_live_selection_keeps_only_tasks_a_real_model_can_be_judged_on(benchmark):
+    live_ids = {t.id for t in live_tasks(benchmark)}
+    assert live_ids == {
+        "T01-add-bug",
+        "T02-mean-cascade",
+        "T03-empty-mean",
+        "T04-full-report",
+        "R03-transient-fault",
+        "R04-fallback-after-outage",
+    }
+    assert all(t.category != "boundary" for t in live_tasks(benchmark))

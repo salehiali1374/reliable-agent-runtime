@@ -1,0 +1,181 @@
+{
+  "benchmark": "triage",
+  "mode": "live",
+  "model": "gemma3:27b-it-q8_0",
+  "metrics": {
+    "tasks": {
+      "total": 6,
+      "task": 4,
+      "recovery": 2,
+      "boundary": 0
+    },
+    "task_success_rate": 0.3333333333333333,
+    "recovery_rate": 0.5,
+    "boundary_pass_rate": null,
+    "tool_call_validity": 1.0,
+    "tool_selection_accuracy": 0.4,
+    "tool_calls_total": 15,
+    "steps": {
+      "mean": 3.5,
+      "median": 3.0,
+      "max": 5
+    },
+    "tool_calls_per_task": {
+      "mean": 2.5,
+      "median": 2.0,
+      "max": 4
+    },
+    "tokens_per_task": {
+      "mean": 2126.6666666666665,
+      "median": 1846.5,
+      "max": 3448
+    },
+    "cost_usd_total": null,
+    "elapsed_s_per_task": {
+      "mean": 8.89987232050286,
+      "median": 7.791263488004915,
+      "max": 16.0408055279986
+    }
+  },
+  "outcomes": [
+    {
+      "task_id": "T01-add-bug",
+      "category": "task",
+      "passed": true,
+      "failures": [],
+      "status": "completed",
+      "stop_reason": null,
+      "steps": 3,
+      "tool_calls": 2,
+      "invalid_calls": 0,
+      "error_results": 0,
+      "expected_calls": 2,
+      "matched_calls": 1,
+      "retried_calls": 0,
+      "prompt_tokens": 1404,
+      "completion_tokens": 186,
+      "cost_usd": null,
+      "elapsed_s": 7.300956981009222,
+      "answer": "{\"source_file\": \"calc/ops.py\", \"faulty_expression\": \"return a - b\"}",
+      "notes": []
+    },
+    {
+      "task_id": "T02-mean-cascade",
+      "category": "task",
+      "passed": false,
+      "failures": [
+        "answer lacks 'calc/ops.py'",
+        "answer lacks 'add'",
+        "answer lacks 'a - b'"
+      ],
+      "status": "completed",
+      "stop_reason": null,
+      "steps": 5,
+      "tool_calls": 4,
+      "invalid_calls": 0,
+      "error_results": 0,
+      "expected_calls": 2,
+      "matched_calls": 1,
+      "retried_calls": 0,
+      "prompt_tokens": 3026,
+      "completion_tokens": 422,
+      "cost_usd": null,
+      "elapsed_s": 16.0408055279986,
+      "answer": "The `test_mean_empty` test fails because the `mean` function in `calc/stats.py` divides by zero when given an empty list. Specifically, the line `return total / len(values)` causes a `ZeroDivisionError` when `len(values)` is 0.",
+      "notes": []
+    },
+    {
+      "task_id": "T03-empty-mean",
+      "category": "task",
+      "passed": false,
+      "failures": [
+        "answer lacks 'calc/stats.py'",
+        "answer lacks 'len(values)'"
+      ],
+      "status": "completed",
+      "stop_reason": null,
+      "steps": 3,
+      "tool_calls": 2,
+      "invalid_calls": 0,
+      "error_results": 0,
+      "expected_calls": 1,
+      "matched_calls": 0,
+      "retried_calls": 0,
+      "prompt_tokens": 1547,
+      "completion_tokens": 240,
+      "cost_usd": null,
+      "elapsed_s": 8.28156999500061,
+      "answer": "{\"source_file\": \"tests/test_stats.py\", \"error_cause\": \"The `test_mean_empty` function in `tests/test_stats.py` causes a `ZeroDivisionError: division by zero`.\"}",
+      "notes": []
+    },
+    {
+      "task_id": "T04-full-report",
+      "category": "task",
+      "passed": false,
+      "failures": [
+        "answer lacks 'a - b'",
+        "answer lacks 'len(values)'"
+      ],
+      "status": "completed",
+      "stop_reason": null,
+      "steps": 3,
+      "tool_calls": 2,
+      "invalid_calls": 0,
+      "error_results": 0,
+      "expected_calls": 3,
+      "matched_calls": 1,
+      "retried_calls": 0,
+      "prompt_tokens": 1671,
+      "completion_tokens": 235,
+      "cost_usd": null,
+      "elapsed_s": 5.758435839001322,
+      "answer": "{\"diagnosis\": \"The tests reveal three failures. `test_ops.py::test_add` fails because the `add` function returns -1 when it should return 5. `test_stats.py::test_mean` fails because the `mean` function returns -2.0 when it should return 2.0. `test_stats.py::test_mean_empty` fails with a `ZeroDivisionError` because the `mean` function attempts to divide by zero when the input list is empty.\"}",
+      "notes": []
+    },
+    {
+      "task_id": "R03-transient-fault",
+      "category": "recovery",
+      "passed": true,
+      "failures": [],
+      "status": "completed",
+      "stop_reason": null,
+      "steps": 2,
+      "tool_calls": 1,
+      "invalid_calls": 0,
+      "error_results": 0,
+      "expected_calls": 1,
+      "matched_calls": 1,
+      "retried_calls": 1,
+      "prompt_tokens": 782,
+      "completion_tokens": 95,
+      "cost_usd": null,
+      "elapsed_s": 3.2754193270084215,
+      "answer": "{\"source_file\": \"calc/ops.py\", \"faulty_expression\": \"return a - b\"}",
+      "notes": []
+    },
+    {
+      "task_id": "R04-fallback-after-outage",
+      "category": "recovery",
+      "passed": false,
+      "failures": [
+        "answer lacks 'calc/ops.py'",
+        "answer lacks 'a - b'"
+      ],
+      "status": "completed",
+      "stop_reason": null,
+      "steps": 5,
+      "tool_calls": 4,
+      "invalid_calls": 0,
+      "error_results": 2,
+      "expected_calls": 1,
+      "matched_calls": 0,
+      "retried_calls": 2,
+      "prompt_tokens": 2851,
+      "completion_tokens": 301,
+      "cost_usd": null,
+      "elapsed_s": 12.742046252998989,
+      "answer": "{\"source_file\": \"tests/test_ops.py\", \"faulty_expression\": \"assert -1 == 5\"}",
+      "notes": []
+    }
+  ]
+}

@@ -13,7 +13,7 @@
       "id": "T01-add-bug",
       "category": "task",
       "description": "Locate the root cause of the failing test_add.",
-      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "prompt": "test_add fails. Find the root cause in the source code, not in the test: name the source file and the faulty expression.",
       "expect": {
         "answer_contains": [
           "calc/ops.py",
@@ -133,7 +133,7 @@
       "id": "T03-empty-mean",
       "category": "task",
       "description": "Diagnose the ZeroDivisionError on an empty list.",
-      "prompt": "test_mean_empty raises an error. What is the cause and where is it?",
+      "prompt": "test_mean_empty raises an error. Find the root cause in the source code, not in the test: name the source file and what in it causes the error.",
       "expect": {
         "answer_contains": [
           "calc/stats.py",
@@ -260,7 +260,7 @@
       "id": "T05-wrong-diagnosis",
       "category": "task",
       "description": "Simulated model blames the wrong function; the criteria must reject it.",
-      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "prompt": "test_add fails. Find the root cause in the source code, not in the test: name the source file and the faulty expression.",
       "expect": {
         "answer_contains": [
           "calc/ops.py",
@@ -302,13 +302,14 @@
           "content": "The test itself is wrong: it should expect a different value for add(2, 3).",
           "tool_calls": []
         }
-      ]
+      ],
+      "scripted_only": true
     },
     {
       "id": "T06-ungrounded-answer",
       "category": "task",
       "description": "Simulated model answers without calling any tool.",
-      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "prompt": "test_add fails. Find the root cause in the source code, not in the test: name the source file and the faulty expression.",
       "expect": {
         "answer_contains": [
           "calc/ops.py",
@@ -328,13 +329,14 @@
           "content": "Probably an off-by-one error somewhere in the arithmetic helpers.",
           "tool_calls": []
         }
-      ]
+      ],
+      "scripted_only": true
     },
     {
       "id": "R01-invalid-arguments",
       "category": "recovery",
       "description": "First call omits a required argument; the error message lets the model fix it.",
-      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "prompt": "test_add fails. Find the root cause in the source code, not in the test: name the source file and the faulty expression.",
       "expect": {
         "answer_contains": [
           "calc/ops.py",
@@ -374,13 +376,14 @@
           "content": "add() in calc/ops.py returns a - b.",
           "tool_calls": []
         }
-      ]
+      ],
+      "scripted_only": true
     },
     {
       "id": "R02-unknown-tool",
       "category": "recovery",
       "description": "Model asks for a tool that does not exist, then uses an available one.",
-      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "prompt": "test_add fails. Find the root cause in the source code, not in the test: name the source file and the faulty expression.",
       "expect": {
         "answer_contains": [
           "calc/ops.py",
@@ -420,13 +423,14 @@
           "content": "add() in calc/ops.py returns a - b.",
           "tool_calls": []
         }
-      ]
+      ],
+      "scripted_only": true
     },
     {
       "id": "R03-transient-fault",
       "category": "recovery",
       "description": "read_file fails twice with a transient error; retry hides it from the model.",
-      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "prompt": "Open calc/ops.py and explain why test_add fails: name the source file and the faulty expression.",
       "expect": {
         "answer_contains": [
           "calc/ops.py",
@@ -469,7 +473,7 @@
       "id": "R04-fallback-after-outage",
       "category": "recovery",
       "description": "read_file stays down past the retry limit; the model falls back to search_code.",
-      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "prompt": "Open calc/ops.py and explain why test_add fails: name the source file and the faulty expression.",
       "expect": {
         "answer_contains": [
           "calc/ops.py",
@@ -523,7 +527,7 @@
       "id": "R05-gives-up",
       "category": "recovery",
       "description": "Model hits a missing file and gives up instead of looking elsewhere.",
-      "prompt": "test_add fails. Find the cause: name the file and the faulty expression.",
+      "prompt": "test_add fails. Find the root cause in the source code, not in the test: name the source file and the faulty expression.",
       "expect": {
         "answer_contains": [
           "calc/ops.py",
@@ -554,7 +558,8 @@
           "content": "I could not locate the source file.",
           "tool_calls": []
         }
-      ]
+      ],
+      "scripted_only": true
     },
     {
       "id": "B01-step-limit",
@@ -679,7 +684,8 @@
             }
           ]
         }
-      ]
+      ],
+      "scripted_only": true
     },
     {
       "id": "B02-identical-call-loop",
@@ -779,7 +785,8 @@
             }
           ]
         }
-      ]
+      ],
+      "scripted_only": true
     },
     {
       "id": "B03-tool-call-cap",
@@ -824,7 +831,8 @@
           "content": "never reached",
           "tool_calls": []
         }
-      ]
+      ],
+      "scripted_only": true
     },
     {
       "id": "B04-token-cap",
@@ -949,7 +957,8 @@
             }
           ]
         }
-      ]
+      ],
+      "scripted_only": true
     },
     {
       "id": "B05-path-escape",
@@ -991,7 +1000,8 @@
           "content": "Both reads were refused: only files inside the workspace are accessible.",
           "tool_calls": []
         }
-      ]
+      ],
+      "scripted_only": true
     }
   ]
 }

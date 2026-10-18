@@ -13,20 +13,40 @@ from agent_runtime import SQLiteTracer
 from agent_runtime.eval.metrics import compute_metrics
 from agent_runtime.eval.report import render_markdown
 from agent_runtime.eval.runner import run_benchmark, scripted_llm
-from agent_runtime.eval.tasks import load_benchmark
+from agent_runtime.eval.tasks import live_tasks, load_benchmark
 from agent_runtime.openai_compat import OpenAICompatClient
+from agent_runtime.prompted_tools import PromptedToolsClient
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m agent_runtime.eval")
     parser.add_argument("benchmark", type=Path)
     parser.add_argument("--mode", choices=["simulated", "live"], default="simulated")
+    parser.add_argument(
+        "--tools",
+        choices=["native", "prompted"],
+        default="native",
+        help="native: server-side tool calling; prompted: JSON actions in plain text (live only)",
+    )
+    parser.add_argument("--only", action="append", metavar="TASK_ID", help="run only these tasks")
     parser.add_argument("--out", type=Path, default=Path("results"))
     parser.add_argument("--trace-db", type=Path, help="also write every event to this SQLite file")
     args = parser.parse_args(argv)
 
     benchmark = load_benchmark(args.benchmark)
+    if args.only:
+        unknown = set(args.only) - {t.id for t in benchmark.tasks}
+        if unknown:
+            print(f"unknown task ids: {sorted(unknown)}", file=sys.stderr)
+            return 2
+        benchmark = benchmark.model_copy(
+            update={"tasks": [t for t in benchmark.tasks if t.id in args.only]}
+        )
     model = None
+    if args.mode == "live":
+        skipped = len(benchmark.tasks) - len(live_tasks(benchmark))
+        benchmark = benchmark.model_copy(update={"tasks": live_tasks(benchmark)})
+        print(f"live mode: skipping {skipped} scripted-only tasks", file=sys.stderr)
     if args.mode == "simulated":
         llm_for = scripted_llm
     else:
@@ -36,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
             print("live mode needs AGENT_LLM_BASE_URL and AGENT_LLM_MODEL", file=sys.stderr)
             return 2
         client = OpenAICompatClient(base_url, model, api_key=os.environ.get("AGENT_LLM_API_KEY"))
+        if args.tools == "prompted":
+            client = PromptedToolsClient(client)
 
         def llm_for(task):
             return client

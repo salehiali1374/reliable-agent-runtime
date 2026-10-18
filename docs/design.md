@@ -109,6 +109,14 @@ Three extension mechanisms, each with a distinct job:
 - **Simulated vs live.** Simulated runs use scripted models and a frozen clock, so the report
   is byte-for-byte reproducible and reports latency as n/a. Live runs use a real model and
   are written to separate files that name the model.
+- **Prompted tools.** `PromptedToolsClient` wraps any text model for servers without native
+  tool calling. Tool names and argument schemas go into the system prompt; the reply must be a
+  JSON action (`tool` + `arguments`, several `calls`, or `answer`). It tolerates code fences,
+  surrounding prose and raw newlines in strings, re-asks up to twice when the JSON is not a
+  valid action, and falls back to treating the text as the final answer. Tool results are fed
+  back as plain user messages.
+- **Live subset.** Tasks flagged `scripted_only` depend on a model misbehaving on purpose and
+  are skipped in live runs; the runtime limits they exercise are covered by the simulated run.
 - **Adapter.** `OpenAICompatClient` speaks the chat-completions API with tool calls over the
   standard library. Timeouts, connection errors and HTTP 408/425/429/5xx are transient;
   other failures are permanent; unparsable tool-call arguments are passed on as an invalid
